@@ -51,16 +51,22 @@ def openText(event):
 		with open(tkf.askopenfilename(), 'r') as fileName:
 			for line in fileName: 
 				for word in tokenizer.tokenize(line):
-					frequencies[word.lower()] += 1
-					totalText.append(word.lower()) #maintain words in order for monkey things
+					word = unicode(word, 'ascii', 'ignore')
+					if word and word[0] == '\'' and word[:1] == '\'': # a stupid crutch to remove the overinclusive end ''s left by tokenizer
+						word = word[1:-1]
+					if word: #no blanks!
+						frequencies[word.lower()] += 1
+						totalText.append(word.lower()) #maintain words in order for monkey things
 			outRow.append(fileName.name.split('/')[-1]) #for the actual display just save the .txt filename, not the whole path
 			fileName.close()
 	except IOError:
 		print "Cancel/File not Found"
 		return
 
+
 	orderedKeys = sorted(frequencies, key = frequencies.get, reverse = True)
 	orderedFreq = OrderedDict(zip(orderedKeys, [frequencies[x] for x in orderedKeys])) #keys, frequencies of words by descending frequency 
+
 
 	root.title("Zipf Explorer - " + fileName.name)
 	dispFreqTable(event)
@@ -114,7 +120,7 @@ def dispFreqTable(event):
 
 	textDisplay = Canvas(frame, width=200, height=480) #last restricts scrolling area
 	textDisplay.pack(fill=BOTH, expand=YES, side = LEFT)
-	
+
 
 	vbar=Scrollbar(frame, orient=VERTICAL)
 	vbar.pack(side=RIGHT, fill = Y, expand = FALSE)
@@ -128,7 +134,7 @@ def dispFreqTable(event):
 	y = 12
 	for key, value in orderedFreq.items():
 		textDisplay.create_text(10,y, text = key, justify = "center", anchor = "nw") #lines bewtween rows?
-		textDisplay.create_text(100,y, text = value, justify = "center", anchor = "nw")
+		textDisplay.create_text(140,y, text = value, justify = "center", anchor = "nw")
 		textDisplay.create_line(0, y+14, textDisplay.winfo_width(), y+14)
 		y+=22
 	
@@ -226,7 +232,8 @@ if __name__ == "__main__":
 	root = Tk()
 	root.title("Zipf Explorer")
 	root.option_add('*tearOff', FALSE) #screw you tear off menus FUCK YOU
-	
+	ico = PhotoImage(file='icon.gif')
+	root.tk.call('wm', 'iconphoto', root._w, ico)	
 
 	# create a menu
 	menu = Menu(root)
