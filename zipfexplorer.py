@@ -27,344 +27,283 @@ import tkFileDialog as tkf
 import tkMessageBox
 import ttk
 
+class mainWindow(Tk):
+	def __init__(self):
+		Tk.__init__(self)
+		self.title("Zipf Explorer")
+		self.option_add('*tearOff', FALSE) #screw you tear off menus FUCK YOU
+		ico = PhotoImage(file='icon.gif')
+		self.tk.call('wm', 'iconphoto', self._w, ico)
 
-orderedFreq = {}
-outRow = []
+		self.tabMan = tabManager(self)
 
+		menu = Menu(self)
+		self.config(menu=menu)
 
-def openText(event):
-
-	global outRow
-	global orderedFreq
-	global totalText
-
-
-	totalText = []
-	outRow = []
-
-	frequencies = defaultdict(int)
-	
-
-	tokenizer = RegexpTokenizer("[\w']+") #improve -- taking 'a' as a diff token from a but needs to retain contraction support
-	
-	try:
-		with open(tkf.askopenfilename(), 'r') as fileName:
-			for line in fileName: 
-				for word in tokenizer.tokenize(line):
-					word = unicode(word, 'ascii', 'ignore')
-					if word and word[0] == '\'' and word[:1] == '\'': # a stupid crutch to remove the overinclusive end ''s left by tokenizer
-						word = word[1:-1]
-					if word: #no blanks!
-						frequencies[word.lower()] += 1
-						totalText.append(word.lower()) #maintain words in order for monkey things
-			outRow.append(fileName.name.split('/')[-1]) #for the actual display just save the .txt filename, not the whole path
-			fileName.close()
-	except IOError:
-		print "Cancel/File not Found"
-		return
+		filemenu = Menu(menu)
+		menu.add_cascade(label="File", menu=filemenu)
+		filemenu.add_command(label="Open...", underline = 0, accelerator="Ctrl+O", command=lambda: self.openText(None))
+		filemenu.add_command(label="Save Single Result As...", underline = 0, accelerator="Ctrl+S", command = lambda: self.saveSingleResult(None))
+		filemenu.add_separator()
+		filemenu.add_command(label="Close Tab", underline = 0, accelerator="Ctrl+C", command=lambda: self.closeTabCallBack(None))
+		filemenu.add_command(label="Quit", underline = 0, accelerator="Ctrl+Q", command= lambda: self.exitCallBack(None))
+		self.bind_all("<Control-q>", self.exitCallBack)
+		self.bind_all("<Control-o>", self.openText)
+		self.bind_all("<Control-s>", self.saveSingleResult)
+		self.bind_all("<Control-c>", self.closeTabCallBack)
 
 
-	orderedKeys = sorted(frequencies, key = frequencies.get, reverse = True)
-	orderedFreq = OrderedDict(zip(orderedKeys, [frequencies[x] for x in orderedKeys])) #keys, frequencies of words by descending frequency 
+		processmenu = Menu(menu)
+		menu.add_cascade(label = "Process", menu=processmenu)
+		processmenu.add_command(label = "Frequency Table", underline = 9, accelerator="Ctrl+T", command = lambda: self.freqTableCallBack(None)) #so this should make tabs happen OK?
+		processmenu.add_command(label = "Plot", underline = 0, accelerator="Ctrl+P", command = lambda: self.plotCallBack(None))
+		processmenu.add_command(label = "Fit values", underline = 0, accelerator="Ctrl+F", command = lambda: self.fitValuesCallBack(None))
+		self.bind_all("<Control-t>", self.freqTableCallBack)
+		self.bind_all("<Control-p>", self.plotCallBack)
+		self.bind_all("<Control-f>", self.fitValuesCallBack)
 
+		batchmenu = Menu(menu)
+		menu.add_cascade(label = "Batch", menu=batchmenu)
+		batchmenu.add_command(label = "Generate Report", underline = 10, accelerator="Ctrl+R", command = lambda: self.reportCallBack(None))
+		self.bind_all("<Control-r>", self.reportCallBack)
 
-	root.title("Zipf Explorer - " + fileName.name)
-	dispFreqTable(event)
+		helpmenu = Menu(menu)
+		menu.add_cascade(label="Help", menu=helpmenu)
+		helpmenu.add_command(label="About...", command=self.aboutBox)
 
-def saveSingleResult(event):
-	if len(outRow) < 2: #if the only thing in outRow is the filename (which is loaded before processing) or nothing at all
-		tkMessageBox.showerror("Process Error","Load a text and run \"Fit Text\" command before saving")
-		return
+	def aboutBox(self):
+		tkMessageBox.showinfo("About", "Zipf Explorer | cmessner.com")
 
-	try:
-		with tkf.asksaveasfile(mode='w', defaultextension=".csv") as of: #append data row 
-			of.write(','.join(["Text", "Total Tokens", "Alpha", "vs. Exponential Liklihood", "vs. Exponential Pvalue", "vs. Lognormal Liklihood", "vs. Lognormal Pvalue"])+'\n')
-			of.write(','.join(outRow) + '\n')
-			of.write('Token, Value, Frequency\n')
-			for key, value in orderedFreq.items():
-				of.write(key+","+str(value)+","+str(value/float(len(totalText)))+'\n')
-			of.close()
-	except AttributeError:
-		print "Cancel/File not Found"
-		return
+	def exitCallBack(self, event):
+		self.destroy()
+		sys.exit(0)
 
-def appendCallback(event):
-	if len(outRow) < 2: #if the only thing in outRow is the filename (which is loaded before processing) or nothing at all
-		tkMessageBox.showerror("Process Error","Load a text and run \"Fit Text\" command before saving")
-		return
+####save functions###
+	def reportCallBack(self, event):
+		self.tabMan.saveReport()
 
-	try:
-		with tkf.asksaveasfile(mode='a', defaultextension=".csv") as of:
-			of.write(','.join(outRow) + '\n')
-			of.close()
-	except AttributeError:
-		print "Cancel/File not Found"
-		return
+	def saveSingleResult(self, event):
+		self.tabMan.saveSingle(self.tabMan.tab(self.tabMan.select(), "text"))
+
+	### these all pass the name of the currently focused on tab to the manager
+	def freqTableCallBack(self, event):
+		self.tabMan.dispTable(self.tabMan.tab(self.tabMan.select(), "text")) #the freqtable menu item passes the current tab to the tab manager
+
+	def fitValuesCallBack(self, event):
+		self.tabMan.dispFit(self.tabMan.tab(self.tabMan.select(), "text")) #the freqtable menu item passes the current tab to the tab manager
+
+	def plotCallBack(self, event):
+		self.tabMan.dispPlot(self.tabMan.tab(self.tabMan.select(), "text"))
+
+	def closeTabCallBack(self, event):
+		self.tabMan.closeTab(self.tabMan.tab(self.tabMan.select(), "text"))
+
+		#####
+
+	def openText(self, event):
+		#totalText = []
+		outRow = []
+
+		frequencies = defaultdict(int)
+
+		tokenizer = RegexpTokenizer("[\w']+") #improve -- taking 'a' as a diff token from a but needs to retain contraction support
 		
-def deleteDisplay():
-	for child in root.winfo_children():
-		if not isinstance(child, Menu): #delete anything that isn't the menu to make room for the graph or the freq table or w/e
+		try:
+			with open(tkf.askopenfilename(), 'r') as fileName:
+				for line in fileName: 
+					for word in tokenizer.tokenize(line):
+						word = unicode(word, 'ascii', 'ignore')
+						if word and word[0] == '\'' and word[:1] == '\'': # a stupid crutch to remove the overinclusive end ''s left by tokenizer
+							word = word[1:-1]
+						if word: #no blanks!
+							frequencies[word.lower()] += 1
+							#totalText.append(word.lower()) #maintain words in order for monkey things
+				#outRow.append(fileName.name.split('/')[-1]) #for the actual display just save the .txt filename, not the whole path
+				fileName.close()
+		except IOError:
+			print "Cancel/File not Found"
+			return
+
+
+		orderedKeys = sorted(frequencies, key = frequencies.get, reverse = True)
+		orderedFreq = OrderedDict(zip(orderedKeys, [frequencies[x] for x in orderedKeys])) #keys, frequencies of words by descending frequency 
+
+
+		self.tabMan.addText(fileName.name.split('/')[-1], orderedFreq)
+
+
+
+
+class tabManager(ttk.Notebook): #checking that we have only one tab open for each file here, etc.
+	def __init__(self, parent):
+		 ttk.Notebook.__init__(self, parent, width=640, height = 480)
+		 self.pack(fill='both', expand=1) 
+
+		 self.tabDict = {}
+		 self.enable_traversal()
+
+
+	def addText(self, name, freq): #load a text from file into the dictionary
+		self.tabDict[name] = tabView(self, name, freq)
+		self.tabDict[name].freqTabView()
+		for openTab in self.tabs(): #these three lines just make it so that focus automatically switches to a newly-opened tab
+			if self.tab(openTab, "text") == name:
+				self.select(openTab)
+
+	def dispTable(self, name):
+		if name in self.tabDict:
+			self.tabDict[name].freqTabView()
+
+	def dispFit(self, name):
+		if name in self.tabDict:
+			self.tabDict[name].fitDataView()
+
+	def dispPlot(self, name):
+		if name in self.tabDict:
+			self.tabDict[name].plotView()
+
+
+	def closeTab(self, name): #remove from dictionary and forget tab
+		if name in self.tabDict:
+			self.tabDict[name].destroy()
+			self.tabDict.pop(name)
+			
+
+	def saveReport(self):
+		try:
+			with tkf.asksaveasfile(mode='w', defaultextension=".csv") as of:
+				for key in self.tabDict:
+					of.write(','.join(self.tabDict[key].fitDataView()) + '\n') #process every open tab
+			of.close()
+		except AttributeError:
+			print "Cancel/File not Found"
+			return
+
+	def saveSingle(self, name):
+		if name in self.tabDict:
+			with tkf.asksaveasfile(mode='w', defaultextension=".csv") as of:
+				for item in self.tabDict[name].orderedFreq:
+					of.write(item + "," + str(self.tabDict[name].orderedFreq[item]) +'\n')
+		
+
+
+class tabView(Frame):
+	def __init__(self, parent, nameText, orderedFreq):
+		Frame.__init__(self, parent)
+
+		parent.add(self, text=nameText)
+		self.outRow = [nameText]
+		self.orderedFreq = orderedFreq
+		self.outRowHeadings = ["Text", "Total Tokens", "Alpha", "vs. Exponential Liklihood", "vs. Exponential Pvalue", "vs. Lognormal Liklihood", "vs. Lognormal Pvalue"]
+
+
+	def freqTabView(self):
+
+		self.clearView()
+
+		textDisplay = Canvas(self, width=200, height=480) 
+		textDisplay.pack(fill=BOTH, expand=YES, side = LEFT)
+
+		vbar=Scrollbar(self, orient=VERTICAL)
+		vbar.pack(side=RIGHT, fill = Y, expand = FALSE)
+		vbar.config(command=textDisplay.yview)
+	
+
+
+		y = 12
+		for key, value in self.orderedFreq.items():
+			textDisplay.create_text(10,y, text = key, justify = "center", anchor = "nw") #lines bewtween rows?
+			textDisplay.create_text(140,y, text = value, justify = "center", anchor = "nw")
+			textDisplay.create_line(0, y+14, 160, y+14)
+			y+=22
+	
+		textDisplay.config(yscrollcommand=vbar.set, scrollregion = textDisplay.bbox("all"))
+
+		return self.orderedFreq
+
+	def fitDataView(self):
+
+		self.clearView()
+
+		total = sum(self.orderedFreq.values())
+		self.outRow.append(str(total))  #total amount of words
+
+		results = powerlaw.Fit(self.orderedFreq.values(), discrete=True) #fit to powerlaw distribution
+	
+		self.outRow.append(str(results.power_law.alpha)) #alpha
+
+		R, p = results.distribution_compare('power_law', 'exponential',  normalized_ratio=True)
+		#print "Liklihood for power instead of exponential, P-value"
+		#print R, p
+		self.outRow.append(str(R))
+		self.outRow.append(str(p))
+
+
+		R, p = results.distribution_compare('power_law', 'lognormal',  normalized_ratio=True)
+		#print "Liklihood for power instead of lognormal, P-value"
+		#print R, p
+		self.outRow.append(str(R))
+		self.outRow.append(str(p))
+
+
+		textDisplay = Canvas(self, width = 800, height = 100)
+		textDisplay.pack(fill=BOTH, expand=YES)
+		
+	
+		x = 0
+		for heading in self.outRowHeadings:
+			textDisplay.create_text(10+x, 10, text=heading, anchor="nw")
+			x += 175
+		
+		textDisplay.create_line(0, 25, 175*len(self.outRowHeadings)+10, 25)
+		
+		x = 0
+		for info in self.outRow:
+			textDisplay.create_text(10+x, 35, text = info, anchor = "nw")
+			x+=175
+
+		hbar=Scrollbar(self,orient=HORIZONTAL)
+		hbar.pack(side=BOTTOM, fill = Y, expand = FALSE)
+		hbar.config(command=textDisplay.xview)
+		
+
+		textDisplay.config(xscrollcommand=hbar.set, scrollregion = textDisplay.bbox("all"))
+
+		return self.outRow
+
+
+
+	def plotView(self):
+		self.clearView()
+
+		f = Figure(figsize=(5,4), dpi=100)
+		a = f.add_subplot(111)
+		test = powerlaw.plot_ccdf(self.orderedFreq.values(), ax = a, color = 'b')
+		a.plot()
+	
+		canvas = FigureCanvasTkAgg(f, master=self)
+		canvas.show()
+		canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=1)
+
+
+		toolbar = NavigationToolbar2TkAgg( canvas, self )
+		toolbar.update()
+		canvas._tkcanvas.pack(side=TOP, fill=BOTH, expand=1)
+
+
+
+	def clearView(self): 
+		for child in self.winfo_children():
 			child.destroy()
 
-def dispFreqTable(event):
-
-	if not orderedFreq:
-		tkMessageBox.showerror("Process Error","Load a .txt file first")
-		return
-
-	deleteDisplay()
 
 
-	frame=Frame(root,width=200,height=480) #scrollbar on this
-	frame.pack(fill=BOTH, expand=YES)	
-
-	textDisplay = Canvas(frame, width=200, height=480) #last restricts scrolling area
-	textDisplay.pack(fill=BOTH, expand=YES, side = LEFT)
 
 
-	vbar=Scrollbar(frame, orient=VERTICAL)
-	vbar.pack(side=RIGHT, fill = Y, expand = FALSE)
-	vbar.config(command=textDisplay.yview)
-	
 
-	
-	textDisplay.update_idletasks() #gotta do for winfo_width to work (pack doesn't actually manage geo)
-
-
-	y = 12
-	for key, value in orderedFreq.items():
-		textDisplay.create_text(10,y, text = key, justify = "center", anchor = "nw") #lines bewtween rows?
-		textDisplay.create_text(140,y, text = value, justify = "center", anchor = "nw")
-		textDisplay.create_line(0, y+14, textDisplay.winfo_width(), y+14)
-		y+=22
-	
-	textDisplay.config(yscrollcommand=vbar.set, scrollregion = textDisplay.bbox("all"))
-
-def dispFitData(event):
-
-	if not orderedFreq:
-		tkMessageBox.showerror("Process Error","Load a .txt file first")
-		return
-
-
-	deleteDisplay()
-	total = sum(orderedFreq.values())
-	outRow.append(str(total))  #total amount of words
-
-	results = powerlaw.Fit(orderedFreq.values(), discrete=True) #fit to powerlaw distribution
-	
-	outRow.append(str(results.power_law.alpha)) #alpha
-
-	R, p = results.distribution_compare('power_law', 'exponential',  normalized_ratio=True)
-	#print "Liklihood for power instead of exponential, P-value"
-	#print R, p
-	outRow.append(str(R))
-	outRow.append(str(p))
-
-
-	R, p = results.distribution_compare('power_law', 'lognormal',  normalized_ratio=True)
-	#print "Liklihood for power instead of lognormal, P-value"
-	#print R, p
-	outRow.append(str(R))
-	outRow.append(str(p))
-
-	frame = Frame(root, width = 800, height = 100)
-	frame.pack(fill = BOTH, expand = YES)
-
-	textDisplay = Canvas(frame, width = 800, height = 100)
-	textDisplay.pack(fill=BOTH, expand=YES)
-	
-	outRowHeadings = ["Text", "Total Tokens", "Alpha", "vs. Exponential Liklihood", "vs. Exponential Pvalue", "vs. Lognormal Liklihood", "vs. Lognormal Pvalue"]
-	x = 0
-	for heading in outRowHeadings:
-		textDisplay.create_text(10+x, 10, text=heading, anchor="nw")
-		x += 175
-	
-	textDisplay.create_line(0, 25, 175*len(outRowHeadings)+10, 25)
-	
-	x = 0
-	for info in outRow:
-		textDisplay.create_text(10+x, 35, text = info, anchor = "nw")
-		x+=175
-
-	hbar=Scrollbar(frame,orient=HORIZONTAL)
-	hbar.pack(side=BOTTOM, fill = Y, expand = FALSE)
-	hbar.config(command=textDisplay.xview)
-	
-
-	textDisplay.config(xscrollcommand=hbar.set, scrollregion = textDisplay.bbox("all"))
-
-def plotCallback(event):
-
-	if not orderedFreq:
-		tkMessageBox.showerror("Process Error","Load a .txt file first")
-		return
-
-
-	deleteDisplay()
-
-	f = Figure(figsize=(5,4), dpi=100)
-	a = f.add_subplot(111)
-	test = powerlaw.plot_ccdf(orderedFreq.values(), ax = a, color = 'b')
-	a.plot()
-	
-	canvas = FigureCanvasTkAgg(f, master=root)
-	canvas.show()
-	canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=1)
-
-
-	toolbar = NavigationToolbar2TkAgg( canvas, root )
-	toolbar.update()
-	canvas._tkcanvas.pack(side=TOP, fill=BOTH, expand=1)
-#eventually combine command line w/ gui here -- if cl option is selected start in GUI, otherwise call functions accordingly?
 
 if __name__ == "__main__":
 
-	def exitCallback(event):
-		root.destroy()
-		sys.exit(0)
+	root = mainWindow()
 
-	def aboutBox():
-   		tkMessageBox.showinfo("About", "Zipf Explorer | cmessner.com")
-
-
-
-	root = Tk()
-	root.title("Zipf Explorer")
-	root.option_add('*tearOff', FALSE) #screw you tear off menus FUCK YOU
-	ico = PhotoImage(file='icon.gif')
-	root.tk.call('wm', 'iconphoto', root._w, ico)	
-
-	# create a menu
-	menu = Menu(root)
-	root.config(menu=menu)
-
-	filemenu = Menu(menu)
-	menu.add_cascade(label="File", menu=filemenu)
-	filemenu.add_command(label="Open...", underline = 0, accelerator="Ctrl+O", command=lambda: openText(None))
-	filemenu.add_command(label="Save Single Result As...", underline = 0, accelerator="Ctrl+S", command = lambda: saveSingleResult(None))
-	filemenu.add_command(label="Append digest to CSV...", underline = 0, accelerator="Ctrl+A", command = lambda: appendCallback(None))
-	filemenu.add_separator()
-	filemenu.add_command(label="Quit", underline = 0, accelerator="Ctrl+Q", command= lambda: exitCallback(None))
-	root.bind_all("<Control-q>", exitCallback)
-	root.bind_all("<Control-o>", openText)
-	root.bind_all("<Control-s>", saveSingleResult)
-	root.bind_all("<Control-a>", appendCallback)
-
-	processmenu = Menu(menu)
-	menu.add_cascade(label = "Process", menu=processmenu)
-	processmenu.add_command(label = "Frequency Table", underline = 10, accelerator="Ctrl+T", command = lambda: dispFreqTable(None)) #so this should make tabs happen OK?
-	processmenu.add_command(label = "Plot", underline = 0, accelerator="Ctrl+P", command = lambda: plotCallback (None))
-	processmenu.add_command(label = "Fit values", underline = 0, accelerator="Ctrl+F", command = lambda: dispFitData (None))
-	root.bind_all("<Control-t>", dispFreqTable)
-	root.bind_all("<Control-p>", plotCallback)
-	root.bind_all("<Control-f>", dispFitData)
-
-	helpmenu = Menu(menu)
-	menu.add_cascade(label="Help", menu=helpmenu)
-	helpmenu.add_command(label="About...", command=aboutBox)
-
-	mainloop()
-
-	#parser = argparse.ArgumentParser(description='Use power laws to explore text')
-	#parser.add_argument('-i', '--infile', nargs='?', type=argparse.FileType('r'), default=sys.stdin, help = 'Filename for a single input file')
-	#parser.add_argument('-d', '--indirectory', nargs=1, type=str,  help = 'Process all text files in a given directory')
-	#parser.add_argument('-o', '--outdirectory', nargs=1, type=str, default = "",  help = 'Directory in which to place output files')
-	#parser.add_argument('-e', '--expanded', action='store_true', help = 'Produce expanded reports for each input file')
-
-	#args = parser.parse_args()
-
-
-	#with open(args.outdirectory + 'powerdigest.csv', 'w') as of:
-	#	of.write('Filename, Total Tokens, Power Fit Alpha, vs. Exponential Likelihood, vs. Exponential P-value, vs. Lognormal Liklihood, vs. Lognormal P-value\n')
-
-	#if args.indirectory: #if a directory was given
-	#	for filename in glob.glob(os.path.join(args.indirectory[0], '*.txt')):	#get all the .txt files in directory
-	#		processText(open(filename, 'r'), args.outdirectory, args.expanded)
-	#else:
-	#	processText(args.infile, args.outdirectory, args.expanded) #otherwise read the single file option, even if it is just stdin
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#################################################################MESSING AROUND #############################################################	
-def monkey(freqData, text): #uses less frequent words instead of most, proportionate. Data = orderedfreq
-	inversetext = ""
-	flipped = defaultdict(list) 
-	for freq in freqData.items():
-		flipped[freq[1]].append(freq[0])
-		
-	print flipped
-
-	for word in text:
-		inversetext = inversetext + " " + random.choice(flipped[freqData[word]])
-	return inversetext
-
-
-
-
-
-def obtusemonkey(freqData, text): #inverts frequencies - so the words that appear most often will now appear least. Moves all that occur at a given interval to the complementary one and then selects one of those words at generation time
-	obtusetext = ""
-	
-	flipped = defaultdict(list) 
-	for freq in freqData.items():
-		flipped[freq[1]].append(freq[0])
-		
-	orderinverse = OrderedDict(sorted(flipped.items(), key=lambda t: t[0]))
-	invert = {}
-	
-	keys = orderinverse.keys()
-	for index in range(0, len(keys)/2):
-		invert[keys[len(keys)-(index+1)]] = orderinverse[keys[index]]
-		invert[keys[index]] = orderinverse[keys[len(keys)-(index+1)]]
-	for key in keys: #get the potential odd one out
-		if key not in invert.keys():
-			invert[key] = orderinverse[key]
-		
-	for word in text:
-		obtusetext = obtusetext + " " + random.choice(invert[freqData[word]])
-		#print freqData[word], invert[freqData[word]]
-	return obtusetext
-	
-	
-def obtusermonkey(freqData, text): #same as above, but selects only one word from each frequency to generate
-	obtusetext = ""
-	
-	flipped = defaultdict(list) 
-	for freq in freqData.items():
-		flipped[freq[1]].append(freq[0])
-		
-	orderinverse = OrderedDict(sorted(flipped.items(), key=lambda t: t[0]))
-	invert = {}
-	
-	keys = orderinverse.keys()
-	for index in range(0, len(keys)/2):
-		invert[keys[len(keys)-(index+1)]] = random.choice(orderinverse[keys[index]])
-		invert[keys[index]] = random.choice(orderinverse[keys[len(keys)-(index+1)]])
-	for key in keys: #get the potential odd one out
-		if key not in invert.keys():
-			invert[key] = orderinverse[key]
-		
-	for word in text:
-		obtusetext = obtusetext + " " + "".join(invert[freqData[word]])
-		#print freqData[word], invert[freqData[word]]
-	return obtusetext
-	
+	root.mainloop()
