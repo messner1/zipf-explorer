@@ -108,8 +108,18 @@ class mainWindow(Tk):
 
 		tokenizer = RegexpTokenizer("[\w']+") #improve -- taking 'a' as a diff token from a but needs to retain contraction support
 		
+		#multiple files
 		try:
-			with open(tkf.askopenfilename(), 'r') as fileName:
+			files = tkf.askopenfilenames()
+			
+
+		except IOError:
+			print "Cancel/File not Found"
+			return
+
+		files = root.splitlist(files)
+		for infile in files:
+			with open(infile, 'r') as fileName:
 				for line in fileName: 
 					for word in tokenizer.tokenize(line):
 						word = unicode(word, 'ascii', 'ignore')
@@ -120,16 +130,14 @@ class mainWindow(Tk):
 							#totalText.append(word.lower()) #maintain words in order for monkey things
 				#outRow.append(fileName.name.split('/')[-1]) #for the actual display just save the .txt filename, not the whole path
 				fileName.close()
-		except IOError:
-			print "Cancel/File not Found"
-			return
 
 
-		orderedKeys = sorted(frequencies, key = frequencies.get, reverse = True)
-		orderedFreq = OrderedDict(zip(orderedKeys, [frequencies[x] for x in orderedKeys])) #keys, frequencies of words by descending frequency 
+
+			orderedKeys = sorted(frequencies, key = frequencies.get, reverse = True)
+			orderedFreq = OrderedDict(zip(orderedKeys, [frequencies[x] for x in orderedKeys])) #keys, frequencies of words by descending frequency 
 
 
-		self.tabMan.addText(fileName.name.split('/')[-1], orderedFreq)
+			self.tabMan.addText(fileName.name.split('/')[-1], orderedFreq)
 
 
 
@@ -204,17 +212,17 @@ class tabView(Frame):
 		textDisplay = Canvas(self, width=200, height=480) 
 		textDisplay.pack(fill=BOTH, expand=YES, side = LEFT)
 
-		vbar=Scrollbar(self, orient=VERTICAL)
+		vbar=Scrollbar(self, orient=VERTICAL)  #TODO, mouse wheel
 		vbar.pack(side=RIGHT, fill = Y, expand = FALSE)
 		vbar.config(command=textDisplay.yview)
-	
+		
 
 
 		y = 12
 		for key, value in self.orderedFreq.items():
 			textDisplay.create_text(10,y, text = key, justify = "center", anchor = "nw") #lines bewtween rows?
 			textDisplay.create_text(140,y, text = value, justify = "center", anchor = "nw")
-			textDisplay.create_line(0, y+14, 160, y+14)
+			textDisplay.create_line(0, y+14, self.winfo_width(), y+14) 
 			y+=22
 	
 		textDisplay.config(yscrollcommand=vbar.set, scrollregion = textDisplay.bbox("all"))
