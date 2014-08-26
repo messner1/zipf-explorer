@@ -85,7 +85,7 @@ class mainWindow(Tk):
 ####save functions###
 
 	def limitDialogueCallBack(self):
-		self.tokenLimit = tksd.askinteger("Token Limit?", "Limit texts to the first (0 means no limit):")
+		self.tokenLimit = tksd.askinteger("Token Limit?", "Limit texts to the first (0 means no limit):", initialvalue=self.tokenLimit)
 
 	def reportCallBack(self, event):
 		self.tabMan.saveReport()
@@ -112,7 +112,7 @@ class mainWindow(Tk):
 		#totalText = []
 		outRow = []
 
-		frequencies = defaultdict(int)
+		
 
 		tokenizer = RegexpTokenizer("[\w']+") #improve -- taking 'a' as a diff token from a but needs to retain contraction support
 		
@@ -127,6 +127,7 @@ class mainWindow(Tk):
 
 		files = root.splitlist(files)
 		for infile in files:
+			frequencies = defaultdict(int)
 			with open(infile, 'r') as fileName:
 				for line in fileName: 
 					for word in tokenizer.tokenize(line):
@@ -274,7 +275,7 @@ class tabView(Frame):
 			textDisplay.create_text(10+x, 10, text=heading, anchor="nw")
 			x += 200
 		
-		textDisplay.create_line(0, 25, 175*len(self.outRowHeadings)+10, 25)
+		textDisplay.create_line(0, 25, 200*len(self.outRowHeadings)+10, 25)
 		
 		x = 0
 		for info in self.outRow:
