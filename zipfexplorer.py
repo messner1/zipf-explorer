@@ -24,18 +24,21 @@ import csv
 
 from Tkinter import *
 import tkFileDialog as tkf
+import tkSimpleDialog as tksd
 import tkMessageBox
 import ttk
 
 class mainWindow(Tk):
 	def __init__(self):
 		Tk.__init__(self)
+
 		self.title("Zipf Explorer")
 		self.option_add('*tearOff', FALSE) #screw you tear off menus FUCK YOU
 		ico = PhotoImage(file='icon.gif')
 		self.tk.call('wm', 'iconphoto', self._w, ico)
 
 		self.tabMan = tabManager(self)
+		self.tokenLimit = 0
 
 		menu = Menu(self)
 		self.config(menu=menu)
@@ -43,6 +46,7 @@ class mainWindow(Tk):
 		filemenu = Menu(menu)
 		menu.add_cascade(label="File", menu=filemenu)
 		filemenu.add_command(label="Open...", underline = 0, accelerator="Ctrl+O", command=lambda: self.openText(None))
+		filemenu.add_command(label="Limit Token Amount...", command = self.limitDialogueCallBack)
 		filemenu.add_command(label="Save Single Result As...", underline = 0, accelerator="Ctrl+S", command = lambda: self.saveSingleResult(None))
 		filemenu.add_separator()
 		filemenu.add_command(label="Close Tab", underline = 0, accelerator="Ctrl+C", command=lambda: self.closeTabCallBack(None))
@@ -79,6 +83,10 @@ class mainWindow(Tk):
 		sys.exit(0)
 
 ####save functions###
+
+	def limitDialogueCallBack(self):
+		self.tokenLimit = tksd.askinteger("Token Limit?", "Limit texts to the first (0 means no limit):")
+
 	def reportCallBack(self, event):
 		self.tabMan.saveReport()
 
@@ -126,7 +134,10 @@ class mainWindow(Tk):
 						if word and word[0] == '\'' and word[:1] == '\'': # a stupid crutch to remove the overinclusive end ''s left by tokenizer
 							word = word[1:-1]
 						if word: #no blanks!
-							frequencies[word.lower()] += 1
+							if self.tokenLimit == 0 or sum(frequencies.values()) < self.tokenLimit: #if there is no token limit or we are below the specified token limit
+								frequencies[word.lower()] += 1
+							
+
 							#totalText.append(word.lower()) #maintain words in order for monkey things
 				#outRow.append(fileName.name.split('/')[-1]) #for the actual display just save the .txt filename, not the whole path
 				fileName.close()
@@ -222,7 +233,7 @@ class tabView(Frame):
 		for key, value in self.orderedFreq.items():
 			textDisplay.create_text(10,y, text = key, justify = "center", anchor = "nw") #lines bewtween rows?
 			textDisplay.create_text(140,y, text = value, justify = "center", anchor = "nw")
-			textDisplay.create_line(0, y+14, self.winfo_width(), y+14) 
+			textDisplay.create_line(0, y+14, textDisplay.winfo_reqwidth(), y+14) 
 			y+=22
 	
 		textDisplay.config(yscrollcommand=vbar.set, scrollregion = textDisplay.bbox("all"))
@@ -261,14 +272,14 @@ class tabView(Frame):
 		x = 0
 		for heading in self.outRowHeadings:
 			textDisplay.create_text(10+x, 10, text=heading, anchor="nw")
-			x += 175
+			x += 200
 		
 		textDisplay.create_line(0, 25, 175*len(self.outRowHeadings)+10, 25)
 		
 		x = 0
 		for info in self.outRow:
 			textDisplay.create_text(10+x, 35, text = info, anchor = "nw")
-			x+=175
+			x+=200
 
 		hbar=Scrollbar(self,orient=HORIZONTAL)
 		hbar.pack(side=BOTTOM, fill = Y, expand = FALSE)
